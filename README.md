@@ -1,6 +1,6 @@
 # OhMyDebn Customization Pack
 
-This repository contains custom configuration and tools OhMyDebn.
+This repository contains custom configuration and tools for OhMyDebn.
 
 ## Preview
 
