@@ -1,0 +1,23 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  
+  vars:
+    # Use absolute paths for references outside the role
+    repo_root: "{{ playbook_dir }}/.."
+    # Determine the target user (handles sudo execution)
+    user: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER')) }}"
+    home_dir: "/home/{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER')) }}"
+
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == 'Debian'
+
+  roles:
+    - common
+    - desktop
+    - security_tools

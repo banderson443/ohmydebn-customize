@@ -1,0 +1,65 @@
+---
+- name: Ensure background directory exists
+  file:
+    path: "{{ home_dir }}/.local/share/backgrounds"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ user }}"
+
+- name: Copy wallpaper
+  copy:
+    src: "{{ repo_root }}/wallpaper.png"
+    dest: "{{ home_dir }}/.local/share/backgrounds/wallpaper.png"
+    owner: "{{ user }}"
+    group: "{{ user }}"
+
+- name: Set Cinnamon wallpaper (Requires user login to see effect)
+  command: >
+    gsettings set org.cinnamon.desktop.background picture-uri 
+    "file://{{ home_dir }}/.local/share/backgrounds/wallpaper.png"
+  become_user: "{{ user }}"
+  changed_when: false
+
+- name: Set Cinnamon wallpaper options
+  command: >
+    gsettings set org.cinnamon.desktop.background picture-options "zoom"
+  become_user: "{{ user }}"
+  changed_when: false
+
+- name: Install Conky and dependencies
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - conky-all
+    - lm-sensors
+    - fonts-sourcesanspro
+    - fonts-open-sans
+
+- name: Create Conky directory in Documents
+  file:
+    path: "{{ home_dir }}/Documents/Conky"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ user }}"
+
+- name: Copy Conky configuration files
+  copy:
+    src: "{{ repo_root }}/Conky/"
+    dest: "{{ home_dir }}/Documents/Conky/"
+    owner: "{{ user }}"
+    group: "{{ user }}"
+
+- name: Ensure autostart directory exists
+  file:
+    path: "{{ home_dir }}/.config/autostart"
+    state: directory
+    owner: "{{ user }}"
+    group: "{{ user }}"
+
+- name: Create Conky autostart entry
+  template:
+    src: conky_autostart.j2
+    dest: "{{ home_dir }}/.config/autostart/start-conky.desktop"
+    owner: "{{ user }}"
+    group: "{{ user }}"

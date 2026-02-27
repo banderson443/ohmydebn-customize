@@ -1,0 +1,4 @@
+---
+tools_dir: /opt/tools
+tools_owner: "{{ user }}"
+tools_group: "{{ user }}"

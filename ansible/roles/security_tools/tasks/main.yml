@@ -1,0 +1,222 @@
+---
+- name: Pre-configure wireshark-common
+  debconf:
+    name: wireshark-common
+    question: wireshark-common/install-setuid
+    value: 'false'
+    vtype: boolean
+
+- name: Install APT Security Tools
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - nmap
+    - wireshark
+    - sqlmap
+    - hydra
+    - john
+    - wifite
+    - aircrack-ng
+    - netcat-openbsd
+    - tcpdump
+    - whois
+    - smbclient
+    - smbmap
+    - recon-ng
+    - arjun
+    - libnet-ssleay-perl
+    - libboost-all-dev
+    - qtbase5-dev
+    - qtchooser
+    - qt5-qmake
+    - qtbase5-dev-tools
+    - libqt5websockets5-dev
+
+- name: Add user to wireshark group
+  user:
+    name: "{{ user }}"
+    groups: wireshark
+    append: yes
+
+- name: Create tools directory
+  file:
+    path: "{{ tools_dir }}"
+    state: directory
+    owner: "{{ tools_owner }}"
+    group: "{{ tools_group }}"
+    mode: '0755'
+
+- name: Install ExploitDB
+  git:
+    repo: https://gitlab.com/exploit-database/exploitdb.git
+    dest: "{{ tools_dir }}/exploitdb"
+    version: master
+
+- name: Link searchsploit
+  file:
+    src: "{{ tools_dir }}/exploitdb/searchsploit"
+    dest: /usr/local/bin/searchsploit
+    state: link
+
+- name: Configure searchsploit
+  copy:
+    src: "{{ tools_dir }}/exploitdb/.searchsploit_rc"
+    dest: "{{ home_dir }}/.searchsploit_rc"
+    remote_src: yes
+    force: no
+
+- name: Install Nikto
+  git:
+    repo: https://github.com/sullo/nikto.git
+    dest: "{{ tools_dir }}/nikto"
+    version: master
+
+- name: Link nikto
+  file:
+    src: "{{ tools_dir }}/nikto/program/nikto.pl"
+    dest: /usr/local/bin/nikto
+    state: link
+
+- name: Install GoBuster
+  command: go install github.com/OJ/gobuster/v3@latest
+  environment:
+    GOPATH: "{{ home_dir }}/go"
+  become_user: "{{ user }}"
+  args:
+    creates: "{{ home_dir }}/go/bin/gobuster"
+
+- name: Link GoBuster
+  file:
+    src: "{{ home_dir }}/go/bin/gobuster"
+    dest: /usr/local/bin/gobuster
+    state: link
+
+- name: Install Metasploit
+  shell: |
+    curl -sSL https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > /tmp/msfinstall
+    chmod +x /tmp/msfinstall
+    /tmp/msfinstall
+  args:
+    creates: /opt/metasploit-framework/bin/msfconsole
+
+- name: Create Burp Suite directory
+  file:
+    path: "{{ tools_dir }}/burpsuite"
+    state: directory
+    owner: "{{ tools_owner }}"
+    group: "{{ tools_group }}"
+
+- name: Download Burp Suite Community
+  get_url:
+    url: "https://portswigger.net/burp/releases/download?product=community&type=Jar"
+    dest: "{{ tools_dir }}/burpsuite/burpsuite.jar"
+    mode: '0644'
+
+- name: Create Burp Suite wrapper
+  copy:
+    content: |
+      #!/bin/bash
+      java -jar {{ tools_dir }}/burpsuite/burpsuite.jar "$@"
+    dest: /usr/local/bin/burpsuite
+    mode: '0755'
+
+- name: Install Impacket
+  git:
+    repo: https://github.com/fortra/impacket.git
+    dest: "{{ tools_dir }}/impacket"
+    version: master
+
+- name: Setup Impacket Venv
+  shell: |
+    python3 -m venv venv
+    . venv/bin/activate
+    pip install .
+  args:
+    chdir: "{{ tools_dir }}/impacket"
+    creates: "{{ tools_dir }}/impacket/venv"
+  become_user: "{{ user }}"
+
+- name: Create Impacket wrapper
+  copy:
+    content: |
+      #!/bin/bash
+      source {{ tools_dir }}/impacket/venv/bin/activate
+      exec "$@"
+    dest: /usr/local/bin/impacket-shell
+    mode: '0755'
+
+- name: Install Evil-WinRM
+  gem:
+    name: evil-winrm
+    state: present
+    user_install: no
+
+- name: Install Sliver C2
+  shell: |
+    curl -sSL https://sliver.sh/install | bash
+  args:
+    creates: /usr/local/bin/sliver
+
+- name: Install Havoc C2
+  git:
+    repo: https://github.com/HavocFramework/Havoc.git
+    dest: "{{ tools_dir }}/havoc"
+    version: main
+
+- name: Build Havoc Teamserver
+  shell: |
+    go mod download
+    go build -o ../havoc-teamserver .
+  args:
+    chdir: "{{ tools_dir }}/havoc/teamserver"
+    creates: "{{ tools_dir }}/havoc/havoc-teamserver"
+  become_user: "{{ user }}"
+  environment:
+    GOPATH: "{{ home_dir }}/go"
+
+- name: Build Havoc Client
+  shell: |
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
+  args:
+    chdir: "{{ tools_dir }}/havoc/client"
+    creates: "{{ tools_dir }}/havoc/client/Havoc"
+  become_user: "{{ user }}"
+
+- name: Create Havoc Server wrapper
+  copy:
+    content: |
+      #!/bin/bash
+      cd {{ tools_dir }}/havoc
+      sudo ./havoc-teamserver server --profile profiles/havoc.yaotl "$@"
+    dest: /usr/local/bin/havoc-server
+    mode: '0755'
+
+- name: Create Havoc Client wrapper
+  copy:
+    content: |
+      #!/bin/bash
+      cd {{ tools_dir }}/havoc/client/build
+      ./Havoc "$@"
+    dest: /usr/local/bin/havoc-client
+    mode: '0755'
+
+- name: Create Wordlists directory
+  file:
+    path: /usr/share/wordlists
+    state: directory
+
+- name: Download Rockyou
+  get_url:
+    url: https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt
+    dest: /usr/share/wordlists/rockyou.txt
+    mode: '0644'
+  ignore_errors: yes
+
+- name: Install SecLists
+  git:
+    repo: https://github.com/danielmiessler/SecLists.git
+    dest: /usr/share/seclists
+    version: master
+    depth: 1
