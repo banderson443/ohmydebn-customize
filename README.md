@@ -2,6 +2,10 @@
 
 This repository contains custom configuration and tools for the OhMyDebn Customization.
 
+## Preview
+
+![Customization Preview](preview.gif)
+
 ## Contents
 
 - **Wallpaper**: `wallpaper.png`
